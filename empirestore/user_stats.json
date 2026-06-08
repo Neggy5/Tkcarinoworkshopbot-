@@ -1,0 +1,31 @@
+{
+  "8714166081": {
+    "totalCommands": 5,
+    "lastSeen": 1780479462252,
+    "commands": {
+      "pair": 2,
+      "start": 3
+    }
+  },
+  "7640070216": {
+    "totalCommands": 2,
+    "lastSeen": 1780479462252,
+    "commands": {
+      "start": 2
+    }
+  },
+  "8443455820": {
+    "totalCommands": 1,
+    "lastSeen": 1780479462251,
+    "commands": {
+      "ping": 1
+    }
+  },
+  "8242426700": {
+    "totalCommands": 1,
+    "lastSeen": 1780479462251,
+    "commands": {
+      "pair": 1
+    }
+  }
+}
