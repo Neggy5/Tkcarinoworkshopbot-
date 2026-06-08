@@ -460,7 +460,7 @@ bot.onText(/\/ping/, requireMembership(withCooldown('ping', 5)(async (msg) => {
 ┃  🎯 *Quality*    ${status}`;
 
     await editStyled(chatId, sent.message_id, 'Ping Result 🌻', body);
-}))));
+})));
 
 // ════════════════════════════════════════════
 //  /runtime
@@ -695,7 +695,7 @@ bot.onText(/\/pair (.+)/, requireMembership(withCooldown('pair', 10)(async (msg,
         sendStyled(chatId, 'Pairing Failed',
             `┃  ❌ *Error*\n┃  ${error.message || 'Please try again.'}`);
     }
-}))));
+})));
 
 // ════════════════════════════════════════════
 //  /delpair
