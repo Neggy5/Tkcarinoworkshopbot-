@@ -1,0 +1,11 @@
+{
+  "jail": {},
+  "warns": {},
+  "groups": {},
+  "audits": {},
+  "autoheal":{},
+  "lockmedia": {},
+  "premium": {},
+  "silence": {},
+  "shadowban": {}
+}
