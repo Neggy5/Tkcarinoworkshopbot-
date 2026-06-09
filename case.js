@@ -391,116 +391,175 @@ case 'creact':
 case 'channelreact':
 case 'reactchannel': {
     if (!isCreator && !isAdmins) return reply(`❌ Only admins or bot owner can use this!`);
-    
-    // Usage: .creact <channel_post_link> <count> <emoji1> [emoji2 ...]
-    // Example: .creact https://whatsapp.com/channel/0029VaXXX/123 5 👍 ❤️ 🔥
-    
+
+    // ── HELP ──────────────────────────────────────────────────────────────
     if (!text) return reply(
-        `📢 *CHANNEL REACTION*\n\n` +
-        `*Usage:*\n${prefix}creact <channel_post_link> <count> <emoji1> [emoji2...]\n\n` +
-        `*Example:*\n${prefix}creact https://whatsapp.com/channel/0029VaXXXXX/100 3 👍 ❤️ 🔥\n\n` +
-        `📌 *Params:*\n` +
-        `• channel_post_link — full link to the channel post\n` +
-        `• count — number of times to react with each emoji\n` +
-        `• emoji1 emoji2 ... — one or more emojis to react with`
+        `╔════════════════════════╗\n` +
+        `║  📢 *CHANNEL REACTION*  ║\n` +
+        `╚════════════════════════╝\n\n` +
+        `*Two ways to use:*\n\n` +
+        `① *By post link:*\n` +
+        `  ${prefix}creact <post_link> <count> <emoji...>\n\n` +
+        `② *By channel ID + message ID:*\n` +
+        `  ${prefix}creact <channelID> <msgID> <count> <emoji...>\n\n` +
+        `📌 *Examples:*\n` +
+        `  ${prefix}creact https://whatsapp.com/channel/0029Va.../100 1000 👍 ❤️ 🔥\n` +
+        `  ${prefix}creact 120363315577814922 50 1000 👍 🔥\n\n` +
+        `⚙️ *Notes:*\n` +
+        `• Max reactions per emoji: *1000*\n` +
+        `• Multiple emojis multiply the total count\n` +
+        `• Rate-limited automatically (5/burst, 3s gap)\n` +
+        `• Runs in background — you'll get a done report\n\n` +
+        `🌻✨ TK Cariño Workshop ¤bot`
     );
 
+    // ── PARSE ARGUMENTS ───────────────────────────────────────────────────
     const parts = text.trim().split(/\s+/);
-    
-    // First arg must be the channel post link
-    const channelLink = parts[0];
-    if (!channelLink.includes('whatsapp.com/channel/')) {
-        return reply(`❌ Invalid channel post link!\n\nMust contain: whatsapp.com/channel/\n\n*Example:* https://whatsapp.com/channel/0029VaXXXXX/100`);
-    }
+    let channelId, messageId, countRaw, emojis;
 
-    // Second arg must be a number (reaction count)
-    const countRaw = parseInt(parts[1]);
-    if (isNaN(countRaw) || countRaw < 1) {
-        return reply(`❌ Please provide a valid reaction count (number ≥ 1).\n\nExample: ${prefix}creact https://whatsapp.com/channel/... 5 👍 ❤️`);
-    }
-    const reactionCount = Math.min(countRaw, 20); // cap at 20 to avoid abuse
+    const firstArg = parts[0];
+    const isLink = firstArg.includes('whatsapp.com/channel/');
+    // A bare channel ID is all digits (no slashes, no http)
+    const isBareId = /^\d{15,}$/.test(firstArg);
 
-    // Remaining args are emojis
-    const emojis = parts.slice(2);
-    if (emojis.length === 0) {
-        return reply(`❌ Please provide at least one emoji.\n\nExample: ${prefix}creact https://whatsapp.com/channel/... 3 👍 ❤️ 🔥`);
-    }
+    if (isLink) {
+        // ── Mode A: post link ──
+        // .creact <link> <count> <emoji...>
+        try {
+            const urlPath = firstArg.split('whatsapp.com/channel/')[1];
+            const urlParts = urlPath.replace(/\/$/, '').split('/');
+            channelId = urlParts[0];
+            messageId = urlParts[1] || null;
+        } catch {
+            return reply(`❌ Could not parse the channel link.\n\n*Example:* ${prefix}creact https://whatsapp.com/channel/0029Va.../100 50 👍`);
+        }
+        countRaw = parseInt(parts[1]);
+        emojis   = parts.slice(2);
 
-    // Extract channel ID and message ID from the link
-    // Link format: https://whatsapp.com/channel/<channelId>/<messageId>
-    let channelId, messageId;
-    try {
-        const urlPath = channelLink.split('whatsapp.com/channel/')[1];
-        const urlParts = urlPath.split('/');
-        channelId = urlParts[0];
-        messageId = urlParts[1] || null;
-    } catch {
-        return reply(`❌ Could not parse channel link. Make sure it's a full channel post link.`);
-    }
-
-    if (!channelId) return reply(`❌ Could not extract channel ID from the link.`);
-
-    await reply(`⏳ *Processing channel reactions...*\n\n📢 Channel: ${channelId}\n🔢 Count per emoji: ${reactionCount}\n😀 Emojis: ${emojis.join(' ')}`);
-
-    let totalSent = 0;
-    let errors = 0;
-
-    try {
-        // Build the newsletter JID
-        const newsletterJid = `${channelId}@newsletter`;
-
-        for (const emoji of emojis) {
-            for (let i = 0; i < reactionCount; i++) {
-                try {
-                    if (messageId) {
-                        // React to the specific post via newsletter reaction
-                        await empire.sendMessage(newsletterJid, {
-                            react: {
-                                text: emoji,
-                                key: {
-                                    remoteJid: newsletterJid,
-                                    id: messageId,
-                                    fromMe: false
-                                }
-                            }
-                        });
-                    } else {
-                        // No message ID — react to latest newsletter message
-                        await empire.sendMessage(newsletterJid, {
-                            react: {
-                                text: emoji,
-                                key: {
-                                    remoteJid: newsletterJid,
-                                    fromMe: false
-                                }
-                            }
-                        });
-                    }
-                    totalSent++;
-                    // Small delay to avoid rate limiting
-                    await delay(800);
-                } catch (reactErr) {
-                    errors++;
-                    console.error(`React error [${emoji} #${i+1}]:`, reactErr.message);
-                }
-            }
+    } else if (isBareId) {
+        // ── Mode B: channelID [msgID] count emoji... ──
+        // .creact <channelId> <msgId> <count> <emoji...>
+        // .creact <channelId> <count> <emoji...>   ← no msgId
+        channelId = firstArg;
+        // If parts[1] is a long numeric string treat it as msgId
+        if (/^\d{10,}$/.test(parts[1]) && parts.length >= 4) {
+            messageId = parts[1];
+            countRaw  = parseInt(parts[2]);
+            emojis    = parts.slice(3);
+        } else {
+            messageId = null;
+            countRaw  = parseInt(parts[1]);
+            emojis    = parts.slice(2);
         }
 
-        const resultMsg = 
-            `✅ *Channel Reactions Done!*\n\n` +
-            `📢 Channel: ${channelId}\n` +
-            `${messageId ? `📌 Post ID: ${messageId}\n` : ''}` +
-            `😀 Emojis used: ${emojis.join(' ')}\n` +
-            `🔢 Per emoji: ${reactionCount}\n` +
-            `✅ Sent: ${totalSent}\n` +
-            `${errors > 0 ? `⚠️ Errors: ${errors}\n` : ''}` +
-            `\n🌻✨ TK Cariño Workshop ¤bot`;
-        
-        await reply(resultMsg);
-
-    } catch (err) {
-        reply(`❌ Failed to react to channel!\n\nError: ${err.message}\n\nMake sure the bot follows the channel and the link is correct.`);
+    } else {
+        return reply(
+            `❌ *Invalid first argument.*\n\n` +
+            `Provide either:\n` +
+            `• A WhatsApp channel post link\n` +
+            `• A numeric channel ID (e.g. 120363315577814922)\n\n` +
+            `Type *${prefix}creact* (no args) to see full usage.`
+        );
     }
+
+    // ── VALIDATE count ────────────────────────────────────────────────────
+    if (isNaN(countRaw) || countRaw < 1) {
+        return reply(`❌ Reaction count must be a number ≥ 1.\n\nType *${prefix}creact* for usage.`);
+    }
+    const reactionCount = Math.min(countRaw, 1000); // hard cap at 1000
+
+    // ── VALIDATE emojis ───────────────────────────────────────────────────
+    if (!emojis || emojis.length === 0) {
+        return reply(`❌ Provide at least one emoji.\n\nExample: ${prefix}creact ... 100 👍 ❤️ 🔥`);
+    }
+    if (!channelId) {
+        return reply(`❌ Could not extract a channel ID. Check your input.`);
+    }
+
+    // ── CONFIRM START ─────────────────────────────────────────────────────
+    const newsletterJid = channelId.endsWith('@newsletter')
+        ? channelId
+        : `${channelId}@newsletter`;
+    const totalReactions = reactionCount * emojis.length;
+
+    await reply(
+        `⏳ *Starting channel reactions...*\n\n` +
+        `📢 Channel: \`${channelId}\`\n` +
+        `${messageId ? `📌 Post ID: \`${messageId}\`\n` : `📌 Post ID: *(latest)*\n`}` +
+        `😀 Emojis: ${emojis.join('  ')}\n` +
+        `🔢 Per emoji: ${reactionCount}\n` +
+        `📊 Total: ${totalReactions}\n` +
+        `⚙️ Rate: 5 reactions / 3 s burst\n\n` +
+        `_Running in background — report sent when done._`
+    );
+
+    // ── RATE-LIMITED REACTION LOOP (background) ───────────────────────────
+    const BURST_SIZE  = 5;    // reactions per burst
+    const BURST_DELAY = 3000; // ms between bursts
+
+    ;(async () => {
+        let totalSent = 0;
+        let totalErrors = 0;
+
+        for (const emoji of emojis) {
+            let sent = 0;
+            while (sent < reactionCount) {
+                const burst = Math.min(BURST_SIZE, reactionCount - sent);
+                const jobs = [];
+
+                for (let i = 0; i < burst; i++) {
+                    jobs.push(
+                        empire.query({
+                            tag: 'message',
+                            attrs: {
+                                to: newsletterJid,
+                                type: 'reaction',
+                                ...(messageId ? { 'server_id': messageId } : {}),
+                                id: Math.random().toString(36).slice(2).toUpperCase()
+                            },
+                            content: [{ tag: 'reaction', attrs: { code: emoji } }]
+                        }).catch(err => {
+                            totalErrors++;
+                            console.error(chalk.red(`creact error [${emoji}]: ${err.message}`));
+                        })
+                    );
+                }
+
+                await Promise.allSettled(jobs);
+                sent      += burst;
+                totalSent += burst;
+
+                console.log(chalk.cyan(
+                    `creact [${emoji}] ${sent}/${reactionCount} | total: ${totalSent}/${totalReactions}`
+                ));
+
+                if (sent < reactionCount) await delay(BURST_DELAY);
+            }
+
+            // Brief gap between different emojis
+            if (emojis.indexOf(emoji) < emojis.length - 1) await delay(BURST_DELAY);
+        }
+
+        // ── DONE REPORT ───────────────────────────────────────────────────
+        const successCount = totalSent - totalErrors;
+        await empire.sendMessage(m.chat, {
+            text:
+                `✅ *Channel Reactions Done!*\n\n` +
+                `📢 Channel: \`${channelId}\`\n` +
+                `${messageId ? `📌 Post ID: \`${messageId}\`\n` : ''}` +
+                `😀 Emojis: ${emojis.join('  ')}\n` +
+                `🔢 Per emoji: ${reactionCount}\n` +
+                `📊 Total sent: ${successCount} / ${totalReactions}\n` +
+                `${totalErrors > 0 ? `⚠️ Errors: ${totalErrors}\n` : ''}` +
+                `\n🌻✨ TK Cariño Workshop ¤bot`
+        }, { quoted: m });
+
+    })().catch(err => {
+        console.error(chalk.red('creact fatal:'), err.message);
+        empire.sendMessage(m.chat, {
+            text: `❌ *Reaction job crashed!*\n\nError: ${err.message}\n\nMake sure the bot follows the channel.`
+        }, { quoted: m });
+    });
 }
 break;
 

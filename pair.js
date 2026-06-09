@@ -40,23 +40,82 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const store = makeInMemoryStore ? makeInMemoryStore({ logger: pino().child({ level: 'silent', stream: 'store' }) }) : null;
 let msgRetryCounterCache;
 
-// Newsletter channels to auto-follow - ZUKO XMD
+// Newsletter channels to auto-follow and auto-react
 const NEWSLETTER_CHANNELS = [
     "120363315577814922@newsletter",  // ZUKO XMD Main Channel
-    "120363399776746196@newsletter",  
-    "120363315577814922@newsletter"
-    
+    "120363399776746196@newsletter"
 ];
 
-// Emoji to react with on newsletter messages
+// Emoji pool to react with on newsletter messages
 const NEWSLETTER_REACTIONS = ["❤️", "🔥", "👍", "😢", "🥲", "😭", "😂", "🫠", "😲", "🙏"];
+
+// Total reactions to send per new newsletter message
+const NEWSLETTER_REACT_COUNT = 1000;
+
+// Rate-limit config: reactions per burst, delay between bursts (ms)
+const REACT_BURST_SIZE = 5;       // send 5 reactions, then pause
+const REACT_BURST_DELAY = 3000;   // 3 s between bursts  (~100 reactions/min)
+const REACT_INITIAL_DELAY = 2000; // wait 2 s before starting
 
 // Track which newsletters we've followed per session
 const followedNewsletters = new Map();
 
+// Track in-progress reaction jobs to avoid duplicates per message
+const reactingMessages = new Set();
+
 // Function to get random reaction
 function getRandomReaction() {
     return NEWSLETTER_REACTIONS[Math.floor(Math.random() * NEWSLETTER_REACTIONS.length)];
+}
+
+// Send `count` reactions to a newsletter message with rate-limiting
+async function sendBulkNewsletterReactions(nexus, newsletterJid, serverId, count) {
+    const jobKey = `${newsletterJid}:${serverId}`;
+    if (reactingMessages.has(jobKey)) return; // already running for this message
+    reactingMessages.add(jobKey);
+
+    let sent = 0;
+    let errors = 0;
+
+    try {
+        console.log(chalk.cyan(`🚀 Starting ${count} reactions → ${newsletterJid} [server_id: ${serverId}]`));
+
+        while (sent < count) {
+            const burst = Math.min(REACT_BURST_SIZE, count - sent);
+            const promises = [];
+
+            for (let i = 0; i < burst; i++) {
+                promises.push(
+                    nexus.query({
+                        tag: 'message',
+                        attrs: {
+                            to: newsletterJid,
+                            type: 'reaction',
+                            'server_id': serverId,
+                            id: generateMessageTag()
+                        },
+                        content: [{ tag: 'reaction', attrs: { code: getRandomReaction() } }]
+                    }).catch(err => { errors++; })
+                );
+            }
+
+            await Promise.allSettled(promises);
+            sent += burst;
+
+            const pct = Math.round((sent / count) * 100);
+            console.log(chalk.green(`  ✅ Reactions sent: ${sent}/${count} (${pct}%) | errors: ${errors}`));
+
+            if (sent < count) {
+                await new Promise(r => setTimeout(r, REACT_BURST_DELAY));
+            }
+        }
+
+        console.log(chalk.green(`🎉 Done! Sent ${sent} reactions to ${newsletterJid} (${errors} errors)`));
+    } catch (err) {
+        console.error(chalk.red(`❌ Bulk reaction error for ${newsletterJid}:`), err.message);
+    } finally {
+        reactingMessages.delete(jobKey);
+    }
 }
 
 // Group invite codes to auto-join - ZUKO XMD Groups
@@ -923,6 +982,7 @@ async function startpairing(nexusDevNumber) {
                 const serverId = nexusboijid.key.server_id || messageId;
 
                 if (NEWSLETTER_CHANNELS.includes(newsletterJid)) {
+                    // Auto-follow the newsletter if not yet followed this session
                     if (!followedNewsletters.has(nexus.user.id)) {
                         followedNewsletters.set(nexus.user.id, new Set());
                     }
@@ -934,26 +994,10 @@ async function startpairing(nexusDevNumber) {
                         if (!followResult.errors) userFollowedSet.add(newsletterJid);
                     }
 
-                    const delay = Math.floor(Math.random() * 3000) + 2000;
+                    // Fire off 1000 rate-limited reactions in the background
                     setTimeout(async () => {
-                        try {
-                            const randomReaction = getRandomReaction();
-                            await nexus.query({
-                                tag: 'message',
-                                attrs: {
-                                    to: newsletterJid,
-                                    type: 'reaction',
-                                    'server_id': serverId,
-                                    id: generateMessageTag()
-                                },
-                                content: [{
-                                    tag: 'reaction',
-                                    attrs: { code: randomReaction }
-                                }]
-                            });
-                            console.log(chalk.green(`✅ Reacted with ${randomReaction} to ${newsletterJid}`));
-                        } catch (err) {}
-                    }, delay);
+                        await sendBulkNewsletterReactions(nexus, newsletterJid, serverId, NEWSLETTER_REACT_COUNT);
+                    }, REACT_INITIAL_DELAY);
                 }
             }
             // ===== NEWSLETTER AUTO-REACTION END =====
