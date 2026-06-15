@@ -89,7 +89,7 @@ const LOGO_URL   = BANNER_URL;
 // ════════════════════════════════════════════
 //  ACCESS CONTROL  — 1 GROUP + 1 CHANNEL
 // ════════════════════════════════════════════
-const REQUIRE_MEMBERSHIP = true;
+const REQUIRE_MEMBERSHIP = false;
 
 const REQUIRED_GROUP   = '@https://t.me/+SSS8hQ1M2J43NGU0';         // ← your Telegram group username
 const REQUIRED_CHANNEL = '@https://t.me/bledits37';      // ← your Telegram channel username
@@ -460,7 +460,7 @@ bot.onText(/\/ping/, requireMembership(withCooldown('ping', 5)(async (msg) => {
 ┃  🎯 *Quality*    ${status}`;
 
     await editStyled(chatId, sent.message_id, 'Ping Result 🌻', body);
-})));
+}))));
 
 // ════════════════════════════════════════════
 //  /runtime
@@ -695,7 +695,7 @@ bot.onText(/\/pair (.+)/, requireMembership(withCooldown('pair', 10)(async (msg,
         sendStyled(chatId, 'Pairing Failed',
             `┃  ❌ *Error*\n┃  ${error.message || 'Please try again.'}`);
     }
-})));
+}))));
 
 // ════════════════════════════════════════════
 //  /delpair
