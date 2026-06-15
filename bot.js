@@ -52,24 +52,21 @@ const TK = {
     name:    'TK Cariño 🌻✨ workshop ¤',
     short:   'TK CARIÑO',
     tagline: '🌻 Where Creativity Blooms ✨',
-    // Box drawing
     top:     '╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮',
     mid:     '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫',
     bot:     '╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯',
     row:     '┃',
-    // Decorative
     sun:     '🌻',
     spark:   '✨',
     arrow:   '❯',
     dot:     '◈',
     star:    '⭐',
-    // Footer
     footer:  '🌻 TK Cariño ✨ workshop ¤ · Bloom & Connect',
     divider: '· · ─────────── 🌻 ─────────── · ·',
 };
 
 // ════════════════════════════════════════════
-//  SOCIAL LINKS  ← update these to your own
+//  SOCIAL LINKS  (kept for informational use)
 // ════════════════════════════════════════════
 const SOCIAL_LINKS = {
     wa_channel1: 'https://whatsapp.com/channel/0029Vaj7qdm60eBWYF20IK1h',
@@ -85,18 +82,6 @@ const SOCIAL_LINKS = {
 // ════════════════════════════════════════════
 const BANNER_URL = 'https://files.catbox.moe/qcpngc.png';
 const LOGO_URL   = BANNER_URL;
-
-// ════════════════════════════════════════════
-//  ACCESS CONTROL  — 1 GROUP + 1 CHANNEL
-// ════════════════════════════════════════════
-const REQUIRE_MEMBERSHIP = false;
-
-const REQUIRED_GROUP   = '@https://t.me/+SSS8hQ1M2J43NGU0';         // ← your Telegram group username
-const REQUIRED_CHANNEL = '@https://t.me/bledits37';      // ← your Telegram channel username
-
-const REQUIRED_CHANNELS = [
-    { link: REQUIRED_CHANNEL, name: `${TK.sun} TK Cariño Workshop Channel` },
-];
 
 // ════════════════════════════════════════════
 //  HELPER FUNCTIONS
@@ -238,39 +223,8 @@ const updateUserStats = async (userId, command) => {
 };
 
 // ════════════════════════════════════════════
-//  MEMBERSHIP CHECK  (1 group + 1 channel)
-// ════════════════════════════════════════════
-const checkMembership = async (userId) => {
-    if (!REQUIRE_MEMBERSHIP) {
-        return { hasJoinedGroup: true, hasJoinedAllChannels: true, hasJoinedAll: true };
-    }
-    try {
-        const valid = ['member', 'administrator', 'creator'];
-        const groupMember   = await bot.getChatMember(REQUIRED_GROUP,   userId).catch(() => null);
-        const channelMember = await bot.getChatMember(REQUIRED_CHANNEL, userId).catch(() => null);
-
-        const hasJoinedGroup   = groupMember   && valid.includes(groupMember.status);
-        const hasJoinedChannel = channelMember && valid.includes(channelMember.status);
-
-        return {
-            hasJoinedGroup,
-            hasJoinedAllChannels: hasJoinedChannel,
-            hasJoinedAll: hasJoinedGroup && hasJoinedChannel,
-        };
-    } catch (error) {
-        console.error(chalk.red('Membership check error:'), error.message);
-        return { hasJoinedGroup: false, hasJoinedAllChannels: false, hasJoinedAll: false };
-    }
-};
-
-// ════════════════════════════════════════════
 //  UI BUILDER  —  beautiful framed messages
 // ════════════════════════════════════════════
-/**
- * Build a styled caption with the TK Cariño frame.
- * @param {string} title  — section heading (will be UPPER‑CASED)
- * @param {string} body   — already‑formatted body lines (use ┃  prefix per line)
- */
 const buildCaption = (title, body) =>
 `${TK.top}
 ${TK.row}  ${TK.sun} *${title.toUpperCase()}*
@@ -281,9 +235,6 @@ ${TK.mid}
 ${TK.row}  ${TK.footer}
 ${TK.bot}`;
 
-/**
- * Send a photo message with the TK Cariño frame.
- */
 const sendStyled = async (chatId, title, body, buttons = null) => {
     const caption = buildCaption(title, body);
     const opts = { caption, parse_mode: 'Markdown' };
@@ -291,9 +242,6 @@ const sendStyled = async (chatId, title, body, buttons = null) => {
     return bot.sendPhoto(chatId, BANNER_URL, opts);
 };
 
-/**
- * Edit an existing photo message in‑place.
- */
 const editStyled = async (chatId, messageId, title, body, buttons = null) => {
     const caption = buildCaption(title, body);
     const mediaPayload = { type: 'photo', media: BANNER_URL, caption, parse_mode: 'Markdown' };
@@ -303,37 +251,7 @@ const editStyled = async (chatId, messageId, title, body, buttons = null) => {
 };
 
 // ════════════════════════════════════════════
-//  JOIN REQUIREMENT MESSAGE
-// ════════════════════════════════════════════
-const sendJoinRequirement = async (chatId) => {
-    const body =
-`┃  🔒 *MEMBERS ONLY ACCESS*
-┃
-┃  To use this bot you must follow all links:
-┃
-┃  🌻 *WHATSAPP CHANNELS*
-┃  ${TK.arrow} TK Cariño WA Channel 1
-┃  ${TK.arrow} TK Cariño WA Channel 2
-┃  ${TK.arrow} TK Cariño WA Channel 3
-┃
-┃  👥 *TELEGRAM GROUP*
-┃  ${TK.arrow} TK Cariño Community Group
-┃
-┃  After joining, tap *✅ VERIFY ACCESS* below.`;
-
-    const keyboard = [
-        [{ text: '🌻 WA Channel 1', url: SOCIAL_LINKS.wa_channel1 }],
-        [{ text: '🌻 WA Channel 2', url: SOCIAL_LINKS.wa_channel2 }],
-        [{ text: '🌻 WA Channel 3', url: SOCIAL_LINKS.wa_channel3 }],
-        [{ text: '👥 Community Group', url: SOCIAL_LINKS.group }],
-        [{ text: '✅ VERIFY ACCESS',   callback_data: 'check_membership' }],
-    ];
-
-    return sendStyled(chatId, 'Access Required', body, keyboard);
-};
-
-// ════════════════════════════════════════════
-//  MIDDLEWARE
+//  MIDDLEWARE (no membership checks – all requirements removed)
 // ════════════════════════════════════════════
 const withCooldown = (command, seconds = 3) => (handler) => async (msg, match) => {
     const key  = `${msg.from.id}_${command}`;
@@ -348,7 +266,8 @@ const withCooldown = (command, seconds = 3) => (handler) => async (msg, match) =
     return handler(msg, match);
 };
 
-const requireMembership = (handler) => async (msg, match) => {
+// Simplified middleware: only track user & update stats, no membership checks
+const simpleMiddleware = (handler) => async (msg, match) => {
     const chatId  = msg.chat.id;
     const userId  = msg.from.id;
     const command = msg.text?.split(' ')[0]?.replace('/', '') || 'unknown';
@@ -356,19 +275,13 @@ const requireMembership = (handler) => async (msg, match) => {
     await trackUser(userId);
     await updateUserStats(userId, command);
 
-    if (!REQUIRE_MEMBERSHIP) return handler(msg, match);
-    if (adminIDs.includes(userId.toString())) return handler(msg, match);
-
-    const mem = await checkMembership(userId);
-    if (!mem.hasJoinedAll) return sendJoinRequirement(chatId);
-
     return handler(msg, match);
 };
 
 // ════════════════════════════════════════════
 //  /start
 // ════════════════════════════════════════════
-bot.onText(/\/start/, requireMembership(async (msg) => {
+bot.onText(/\/start/, simpleMiddleware(async (msg) => {
     const chatId    = msg.chat.id;
     const firstName = msg.from.first_name;
 
@@ -404,7 +317,7 @@ bot.onText(/\/start/, requireMembership(async (msg) => {
 // ════════════════════════════════════════════
 //  /help
 // ════════════════════════════════════════════
-bot.onText(/\/help/, async (msg) => {
+bot.onText(/\/help/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
 
     const body =
@@ -431,12 +344,12 @@ bot.onText(/\/help/, async (msg) => {
     ];
 
     await sendStyled(chatId, 'Command Guide', body, keyboard);
-});
+}));
 
 // ════════════════════════════════════════════
 //  /ping
 // ════════════════════════════════════════════
-bot.onText(/\/ping/, requireMembership(withCooldown('ping', 5)(async (msg) => {
+bot.onText(/\/ping/, simpleMiddleware(withCooldown('ping', 5)(async (msg) => {
     const chatId = msg.chat.id;
     const start  = Date.now();
 
@@ -465,7 +378,7 @@ bot.onText(/\/ping/, requireMembership(withCooldown('ping', 5)(async (msg) => {
 // ════════════════════════════════════════════
 //  /runtime
 // ════════════════════════════════════════════
-bot.onText(/\/runtime/, requireMembership(async (msg) => {
+bot.onText(/\/runtime/, simpleMiddleware(async (msg) => {
     const uptime = runtime(process.uptime());
     const memory = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
 
@@ -482,7 +395,7 @@ bot.onText(/\/runtime/, requireMembership(async (msg) => {
 // ════════════════════════════════════════════
 //  /profile
 // ════════════════════════════════════════════
-bot.onText(/\/profile/, requireMembership(async (msg) => {
+bot.onText(/\/profile/, simpleMiddleware(async (msg) => {
     const chatId   = msg.chat.id;
     const userId   = msg.from.id;
     const name     = msg.from.first_name;
@@ -510,7 +423,7 @@ bot.onText(/\/profile/, requireMembership(async (msg) => {
 // ════════════════════════════════════════════
 //  /leaderboard
 // ════════════════════════════════════════════
-bot.onText(/\/leaderboard/, requireMembership(async (msg) => {
+bot.onText(/\/leaderboard/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
     const top    = Object.entries(userStats)
         .sort((a, b) => b[1].totalCommands - a[1].totalCommands)
@@ -553,7 +466,7 @@ bot.onText(/\/stats/, async (msg) => {
 // ════════════════════════════════════════════
 //  /welcome  (admin)
 // ════════════════════════════════════════════
-bot.onText(/\/welcome$/, requireMembership(async (msg) => {
+bot.onText(/\/welcome$/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
@@ -574,7 +487,7 @@ bot.onText(/\/welcome$/, requireMembership(async (msg) => {
     await sendStyled(chatId, 'Welcome Settings', body);
 }));
 
-bot.onText(/\/welcome (on|off|set .+)/, requireMembership(async (msg, match) => {
+bot.onText(/\/welcome (on|off|set .+)/, simpleMiddleware(async (msg, match) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
@@ -604,7 +517,7 @@ bot.onText(/\/welcome (on|off|set .+)/, requireMembership(async (msg, match) => 
 // ════════════════════════════════════════════
 //  /goodbye  (admin)
 // ════════════════════════════════════════════
-bot.onText(/\/goodbye$/, requireMembership(async (msg) => {
+bot.onText(/\/goodbye$/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
@@ -624,7 +537,7 @@ bot.onText(/\/goodbye$/, requireMembership(async (msg) => {
     await sendStyled(chatId, 'Goodbye Settings', body);
 }));
 
-bot.onText(/\/goodbye (on|off|set .+)/, requireMembership(async (msg, match) => {
+bot.onText(/\/goodbye (on|off|set .+)/, simpleMiddleware(async (msg, match) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
@@ -654,7 +567,7 @@ bot.onText(/\/goodbye (on|off|set .+)/, requireMembership(async (msg, match) => 
 // ════════════════════════════════════════════
 //  /pair
 // ════════════════════════════════════════════
-bot.onText(/\/pair (.+)/, requireMembership(withCooldown('pair', 10)(async (msg, match) => {
+bot.onText(/\/pair (.+)/, simpleMiddleware(withCooldown('pair', 10)(async (msg, match) => {
     const chatId = msg.chat.id;
     const number = match[1].trim();
 
@@ -700,7 +613,7 @@ bot.onText(/\/pair (.+)/, requireMembership(withCooldown('pair', 10)(async (msg,
 // ════════════════════════════════════════════
 //  /delpair
 // ════════════════════════════════════════════
-bot.onText(/\/delpair (.+)/, requireMembership(async (msg, match) => {
+bot.onText(/\/delpair (.+)/, simpleMiddleware(async (msg, match) => {
     const chatId = msg.chat.id;
     const number = match[1].trim();
 
@@ -775,7 +688,7 @@ bot.onText(/\/listpair confirm/, async (msg) => {
 // ════════════════════════════════════════════
 //  /report
 // ════════════════════════════════════════════
-bot.onText(/\/report (.+)/, requireMembership(async (msg, match) => {
+bot.onText(/\/report (.+)/, simpleMiddleware(async (msg, match) => {
     const chatId   = msg.chat.id;
     const userId   = msg.from.id;
     const username = msg.from.username ? `@${msg.from.username}` : 'No username';
@@ -801,7 +714,7 @@ bot.onText(/\/report (.+)/, requireMembership(async (msg, match) => {
 }));
 
 // ════════════════════════════════════════════
-//  CALLBACK QUERY HANDLER
+//  CALLBACK QUERY HANDLER (no membership checks)
 // ════════════════════════════════════════════
 bot.on('callback_query', async (cbq) => {
     const msg    = cbq.message;
@@ -813,46 +726,8 @@ bot.on('callback_query', async (cbq) => {
 
     await trackUser(userId);
 
-    // ── VERIFY ACCESS ──
-    if (data === 'check_membership') {
-        await bot.answerCallbackQuery(cbq.id, { text: '🔍 Checking your membership…' });
-        const mem = await checkMembership(userId);
-
-        if (mem.hasJoinedAll) {
-            const body =
-`┃  ${TK.sun} *Access Granted, ${fname}!*
-┃  Welcome to *TK Cariño 🌻✨ workshop ¤*
-┃
-┃  📲 *PAIRING*
-┃  ${TK.arrow} /pair \`num\`     — Connect WhatsApp
-┃  ${TK.arrow} /delpair \`num\`  — Remove device
-┃  ${TK.arrow} /listpair confirm — View devices
-┃
-┃  📊 /ping  /runtime  /profile  /leaderboard`;
-
-            await editStyled(chatId, msgId, 'Welcome ✨', body, [
-                [{ text: `${TK.sun} Channel`, url: SOCIAL_LINKS.channel },
-                 { text: '👥 Group',          url: SOCIAL_LINKS.group   }],
-                [{ text: '❓ Help',            callback_data: 'help_msg'  }],
-            ]);
-        } else {
-            const denied =
-`┃  🔒 *Access Denied*
-┃
-┃  You haven't joined all required links yet.
-┃  Follow all WA channels & the group, then tap VERIFY again.`;
-
-            await editStyled(chatId, msgId, 'Access Denied', denied, [
-                [{ text: '🌻 WA Channel 1', url: SOCIAL_LINKS.wa_channel1 }],
-                [{ text: '🌻 WA Channel 2', url: SOCIAL_LINKS.wa_channel2 }],
-                [{ text: '🌻 WA Channel 3', url: SOCIAL_LINKS.wa_channel3 }],
-                [{ text: '👥 Community Group', url: SOCIAL_LINKS.group }],
-                [{ text: '🔄 VERIFY AGAIN',    callback_data: 'check_membership' }],
-            ]);
-        }
-
     // ── START BOT (callback) ──
-    } else if (data === 'start_bot') {
+    if (data === 'start_bot') {
         await bot.answerCallbackQuery(cbq.id);
 
         const body =
@@ -937,10 +812,6 @@ bot.on('message', async (msg) => {
 
     if (!VALID_COMMANDS.has(cmd)) {
         await trackUser(userId);
-        if (!adminIDs.includes(userId.toString()) && REQUIRE_MEMBERSHIP) {
-            const mem = await checkMembership(userId);
-            if (!mem.hasJoinedAll) return sendJoinRequirement(chatId);
-        }
         sendStyled(chatId, 'Unknown Command',
             `┃  ❓ *Command not found.*\n┃  Type /help to see all available commands.`);
     }
@@ -978,7 +849,7 @@ bot.on('webhook_error',  (error) => console.error(chalk.red('Webhook error:'),  
 ╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`
     ));
 
-    console.log(chalk.green(`✓ Membership check : ${REQUIRE_MEMBERSHIP ? 'ON (1 group + 1 channel)' : 'OFF'}`));
+    console.log(chalk.green('✓ Membership checks   : REMOVED (no requirements)'));
     console.log(chalk.green('✓ Welcome/Goodbye  : ENABLED'));
     console.log(chalk.green('✓ Report system    : ENABLED'));
     console.log(chalk.green('✓ All systems ready! 🌻\n'));
