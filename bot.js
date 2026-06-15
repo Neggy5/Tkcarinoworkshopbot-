@@ -200,7 +200,7 @@ const saveGoodbyeSettings = async () => {
 };
 
 // ════════════════════════════════════════════
-//  USER TRACKING
+//  USER TRACKING (no membership checks)
 // ════════════════════════════════════════════
 const trackUser = async (userId) => {
     const id = userId.toString();
@@ -251,7 +251,7 @@ const editStyled = async (chatId, messageId, title, body, buttons = null) => {
 };
 
 // ════════════════════════════════════════════
-//  MIDDLEWARE (no membership checks – all requirements removed)
+//  MIDDLEWARE
 // ════════════════════════════════════════════
 const withCooldown = (command, seconds = 3) => (handler) => async (msg, match) => {
     const key  = `${msg.from.id}_${command}`;
@@ -259,32 +259,31 @@ const withCooldown = (command, seconds = 3) => (handler) => async (msg, match) =
     const last = cooldowns.get(key);
     if (last && now - last < seconds * 1000) {
         const wait = Math.ceil((seconds * 1000 - (now - last)) / 1000);
-        return sendStyled(msg.chat.id, 'Slow Down 🌻',
+        await sendStyled(msg.chat.id, 'Slow Down 🌻',
             `┃  ⏳ Please wait *${wait}s* before using this again.`);
+        return;
     }
     cooldowns.set(key, now);
     return handler(msg, match);
 };
 
-// Simplified middleware: only track user & update stats, no membership checks
+// Simple middleware: only track user and stats
 const simpleMiddleware = (handler) => async (msg, match) => {
-    const chatId  = msg.chat.id;
     const userId  = msg.from.id;
     const command = msg.text?.split(' ')[0]?.replace('/', '') || 'unknown';
-
     await trackUser(userId);
     await updateUserStats(userId, command);
-
     return handler(msg, match);
 };
 
-// ════════════════════════════════════════════
-//  /start
-// ════════════════════════════════════════════
+// ─────────────────────────────────────────────────
+//  COMMANDS (all syntax errors fixed)
+// ─────────────────────────────────────────────────
+
+// /start
 bot.onText(/\/start/, simpleMiddleware(async (msg) => {
     const chatId    = msg.chat.id;
     const firstName = msg.from.first_name;
-
     const body =
 `┃  ${TK.sun} *Hello, ${firstName}!* Welcome to
 ┃  *TK Cariño 🌻✨ workshop ¤*
@@ -304,22 +303,17 @@ bot.onText(/\/start/, simpleMiddleware(async (msg) => {
 ┃  ${TK.arrow} /welcome     — Welcome messages
 ┃  ${TK.arrow} /goodbye     — Goodbye messages
 ┃  ${TK.arrow} /report \`msg\` — Send a report`;
-
     const keyboard = [
         [{ text: `${TK.sun} Channel`,  url: SOCIAL_LINKS.channel },
          { text: '👥 Group',           url: SOCIAL_LINKS.group   }],
         [{ text: '❓ Help',             callback_data: 'help_msg' }],
     ];
-
     await sendStyled(chatId, `Welcome, ${firstName}`, body, keyboard);
 }));
 
-// ════════════════════════════════════════════
-//  /help
-// ════════════════════════════════════════════
+// /help
 bot.onText(/\/help/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
-
     const body =
 `┃  📲 *PAIRING COMMANDS*
 ┃  ${TK.arrow} /pair \`number\`     — Pair WhatsApp
@@ -336,76 +330,59 @@ bot.onText(/\/help/, simpleMiddleware(async (msg) => {
 ┃  ${TK.arrow} /welcome     — Welcome messages
 ┃  ${TK.arrow} /goodbye     — Goodbye messages
 ┃  ${TK.arrow} /report \`msg\` — Report an issue`;
-
     const keyboard = [
         [{ text: `${TK.sun} Channel`, url: SOCIAL_LINKS.channel },
          { text: '👥 Group',          url: SOCIAL_LINKS.group   }],
         [{ text: '🚀 Start',          callback_data: 'start_bot' }],
     ];
-
     await sendStyled(chatId, 'Command Guide', body, keyboard);
 }));
 
-// ════════════════════════════════════════════
-//  /ping
-// ════════════════════════════════════════════
+// /ping
 bot.onText(/\/ping/, simpleMiddleware(withCooldown('ping', 5)(async (msg) => {
     const chatId = msg.chat.id;
-    const start  = Date.now();
-
+    const start = Date.now();
     const sent = await bot.sendPhoto(chatId, BANNER_URL, {
         caption: `${TK.sun} *Pinging...*`,
         parse_mode: 'Markdown',
     });
-
     const latency = Date.now() - start;
-    const apiLat  = sent.date - msg.date;
-
+    const apiLat = sent.date - msg.date;
     const emoji  = latency < 100 ? '🟢' : latency < 200 ? '🟡' : latency < 500 ? '🟠' : '🔴';
     const bar    = latency < 100 ? '█████' : latency < 200 ? '████░' : latency < 500 ? '███░░' : '██░░░';
     const status = latency < 100 ? 'Excellent' : latency < 200 ? 'Good' : latency < 500 ? 'Slow' : 'Very Slow';
-
     const body =
 `┃  🏓 *PONG!*
 ┃
 ┃  ${emoji} *Response*   ${latency}ms  \`${bar}\`
 ┃  📡 *API Delay*  ${apiLat}ms
 ┃  🎯 *Quality*    ${status}`;
-
     await editStyled(chatId, sent.message_id, 'Ping Result 🌻', body);
-}))));
+})));
 
-// ════════════════════════════════════════════
-//  /runtime
-// ════════════════════════════════════════════
+// /runtime
 bot.onText(/\/runtime/, simpleMiddleware(async (msg) => {
     const uptime = runtime(process.uptime());
     const memory = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2);
-
     const body =
 `┃  🟢 *Status*   Online & Blooming ${TK.sun}
 ┃
 ┃  ⏱  *Uptime*   ${uptime}
 ┃  💾 *Memory*   ${memory} MB
 ┃  👥 *Users*    ${formatNumber(userIDs.size)} registered`;
-
     await sendStyled(msg.chat.id, 'System Status', body);
 }));
 
-// ════════════════════════════════════════════
-//  /profile
-// ════════════════════════════════════════════
+// /profile
 bot.onText(/\/profile/, simpleMiddleware(async (msg) => {
     const chatId   = msg.chat.id;
     const userId   = msg.from.id;
     const name     = msg.from.first_name;
     const username = msg.from.username ? `@${msg.from.username}` : 'No username';
-
-    const stat       = userStats[userId] || { totalCommands: 0, lastSeen: Date.now(), commands: {} };
+    const stat = userStats[userId] || { totalCommands: 0, lastSeen: Date.now(), commands: {} };
     const lastSeen   = new Date(stat.lastSeen).toLocaleString();
     const uniqueCmds = Object.keys(stat.commands || {}).length;
     const mostUsed   = Object.entries(stat.commands || {}).sort((a,b) => b[1]-a[1])[0];
-
     const body =
 `┃  ${TK.sun} *${name}*
 ┃  ${TK.dot} ID:       \`${userId}\`
@@ -416,42 +393,33 @@ bot.onText(/\/profile/, simpleMiddleware(async (msg) => {
 ┃  ${TK.dot} Unique commands  ${uniqueCmds}
 ┃  ${TK.dot} Most used        ${mostUsed ? '/' + mostUsed[0] : '—'}
 ┃  ${TK.dot} Last active      ${lastSeen}`;
-
     await sendStyled(chatId, 'Your Profile', body);
 }));
 
-// ════════════════════════════════════════════
-//  /leaderboard
-// ════════════════════════════════════════════
+// /leaderboard
 bot.onText(/\/leaderboard/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
-    const top    = Object.entries(userStats)
+    const top = Object.entries(userStats)
         .sort((a, b) => b[1].totalCommands - a[1].totalCommands)
         .slice(0, 10);
-
     if (!top.length) {
         return sendStyled(chatId, 'Leaderboard 🏆', '┃  📊 *No data yet. Be the first!*');
     }
-
     const medals = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
     let rows = '';
     for (let i = 0; i < top.length; i++) {
         const [uid, s] = top[i];
         rows += `┃  ${medals[i]}  \`${uid.slice(-6)}\`  —  *${s.totalCommands}* cmds\n`;
     }
-
     await sendStyled(chatId, 'Top Users 🏆', rows.trimEnd());
 }));
 
-// ════════════════════════════════════════════
-//  /stats  (admin only)
-// ════════════════════════════════════════════
+// /stats (admin only)
 bot.onText(/\/stats/, async (msg) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
     }
-
     const totalCmds = Object.values(userStats).reduce((s, u) => s + (u.totalCommands || 0), 0);
     const body =
 `┃  👥 *Users*      ${formatNumber(userIDs.size)}
@@ -459,19 +427,15 @@ bot.onText(/\/stats/, async (msg) => {
 ┃  ⏱  *Uptime*     ${runtime(process.uptime())}
 ┃  💾 *Memory*     ${(process.memoryUsage().heapUsed/1024/1024).toFixed(2)} MB
 ┃  👑 *Admins*     ${adminIDs.length}`;
-
     await sendStyled(chatId, 'Bot Statistics', body);
 });
 
-// ════════════════════════════════════════════
-//  /welcome  (admin)
-// ════════════════════════════════════════════
+// /welcome (admin)
 bot.onText(/\/welcome$/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
     }
-
     const body =
 `┃  ⚙️ *WELCOME CONFIGURATION*
 ┃
@@ -483,7 +447,6 @@ bot.onText(/\/welcome$/, simpleMiddleware(async (msg) => {
 ┃  ${TK.dot} {name}  — Member name
 ┃  ${TK.dot} {group} — Group name
 ┃  ${TK.dot} {count} — Member count`;
-
     await sendStyled(chatId, 'Welcome Settings', body);
 }));
 
@@ -492,10 +455,8 @@ bot.onText(/\/welcome (on|off|set .+)/, simpleMiddleware(async (msg, match) => {
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
     }
-
     await loadWelcomeSettings();
     if (!welcomeSettings[chatId]) welcomeSettings[chatId] = { enabled: false, message: '' };
-
     const action = match[1];
     if (action === 'on') {
         welcomeSettings[chatId].enabled = true;
@@ -514,15 +475,12 @@ bot.onText(/\/welcome (on|off|set .+)/, simpleMiddleware(async (msg, match) => {
     }
 }));
 
-// ════════════════════════════════════════════
-//  /goodbye  (admin)
-// ════════════════════════════════════════════
+// /goodbye (admin)
 bot.onText(/\/goodbye$/, simpleMiddleware(async (msg) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
     }
-
     const body =
 `┃  ⚙️ *GOODBYE CONFIGURATION*
 ┃
@@ -533,7 +491,6 @@ bot.onText(/\/goodbye$/, simpleMiddleware(async (msg) => {
 ┃  🔤 *VARIABLES*
 ┃  ${TK.dot} {name}  — Member name
 ┃  ${TK.dot} {group} — Group name`;
-
     await sendStyled(chatId, 'Goodbye Settings', body);
 }));
 
@@ -542,10 +499,8 @@ bot.onText(/\/goodbye (on|off|set .+)/, simpleMiddleware(async (msg, match) => {
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
     }
-
     await loadGoodbyeSettings();
     if (!goodbyeSettings[chatId]) goodbyeSettings[chatId] = { enabled: false, message: '' };
-
     const action = match[1];
     if (action === 'on') {
         goodbyeSettings[chatId].enabled = true;
@@ -564,36 +519,28 @@ bot.onText(/\/goodbye (on|off|set .+)/, simpleMiddleware(async (msg, match) => {
     }
 }));
 
-// ════════════════════════════════════════════
-//  /pair
-// ════════════════════════════════════════════
+// /pair (fixed parentheses)
 bot.onText(/\/pair (.+)/, simpleMiddleware(withCooldown('pair', 10)(async (msg, match) => {
     const chatId = msg.chat.id;
     const number = match[1].trim();
-
     try {
         if (!number || /[a-z]/i.test(number) || !/^\d{7,15}$/.test(number) || number.startsWith('0')) {
             return sendStyled(chatId, 'Invalid Number',
                 '┃  ⚠️ *Format:* /pair `234XXXXXXXXX`\n┃  Include country code, no leading 0.');
         }
-
         await sendStyled(chatId, 'Pairing 🌻',
             '┃  ⏳ *Generating your pairing code…*\n┃  Please wait a moment.');
-
         const jid = number.replace(/\D/g, '') + '@s.whatsapp.net';
         await startpairing(jid);
         await sleep(4000);
-
         const pairingFile = path.join(DATA_DIR, 'pairing', 'pairing.json');
         if (!(await exists(pairingFile))) {
             return sendStyled(chatId, 'Pairing Failed',
                 '┃  ❌ *Could not generate code.*\n┃  Please try again in a moment.');
         }
-
-        const raw    = await fs.readFile(pairingFile, 'utf-8');
-        const cuObj  = JSON.parse(raw);
-        const phone  = number.replace(/\D/g, '');
-
+        const raw = await fs.readFile(pairingFile, 'utf-8');
+        const cuObj = JSON.parse(raw);
+        const phone = number.replace(/\D/g, '');
         await sendStyled(chatId, 'Pairing Success ✨',
 `┃  ✅ *Device Linked!*
 ┃
@@ -602,46 +549,34 @@ bot.onText(/\/pair (.+)/, simpleMiddleware(withCooldown('pair', 10)(async (msg, 
 ┃
 ┃  _Open WhatsApp › Linked Devices › Link a Device_
 ┃  _Enter the code above to complete pairing._`);
-
     } catch (error) {
         console.error(chalk.red('Pair error:'), error);
         sendStyled(chatId, 'Pairing Failed',
             `┃  ❌ *Error*\n┃  ${error.message || 'Please try again.'}`);
     }
-}))));
+})));
 
-// ════════════════════════════════════════════
-//  /delpair
-// ════════════════════════════════════════════
+// /delpair
 bot.onText(/\/delpair (.+)/, simpleMiddleware(async (msg, match) => {
     const chatId = msg.chat.id;
     const number = match[1].trim();
-
     try {
         if (!number || /[a-z]/i.test(number) || !/^\d{7,15}$/.test(number)) {
             return sendStyled(chatId, 'Invalid Number', '┃  ⚠️ *Format:* /delpair `234XXXXXXXXX`');
         }
-
         const jidSuffix  = `${number}@s.whatsapp.net`;
         const pairingDir = path.join(DATA_DIR, 'pairing');
-
         if (!(await exists(pairingDir))) {
             return sendStyled(chatId, 'Not Found', '┃  ❌ *No sessions on record.*');
         }
-
         const entries = await fs.readdir(pairingDir, { withFileTypes: true });
-        const match2  = entries.find(e => e.isDirectory() && e.name === jidSuffix);
-
+        const match2 = entries.find(e => e.isDirectory() && e.name === jidSuffix);
         if (!match2) {
-            return sendStyled(chatId, 'Not Found',
-                `┃  ❌ *${number} is not paired.*`);
+            return sendStyled(chatId, 'Not Found', `┃  ❌ *${number} is not paired.*`);
         }
-
         await fs.rm(path.join(pairingDir, match2.name), { recursive: true, force: true });
-
         await sendStyled(chatId, 'Device Removed ✅',
             `┃  ✅ *Unlinked successfully!*\n┃\n┃  📱 ${number} has been removed.`);
-
         console.log(chalk.green(`🗑️ Deleted: ${number}`));
     } catch (err) {
         console.error(chalk.red('Delpair error:'), err);
@@ -649,35 +584,28 @@ bot.onText(/\/delpair (.+)/, simpleMiddleware(async (msg, match) => {
     }
 }));
 
-// ════════════════════════════════════════════
-//  /listpair  (admin only)
-// ════════════════════════════════════════════
+// /listpair (admin)
 bot.onText(/\/listpair confirm/, async (msg) => {
     const chatId = msg.chat.id;
     if (!adminIDs.includes(msg.from.id.toString())) {
         return sendStyled(chatId, 'Restricted', '┃  🔒 *Admin access only*');
     }
-
     try {
         const pairingDir = path.join(DATA_DIR, 'pairing');
         if (!(await exists(pairingDir))) {
             return sendStyled(chatId, 'Paired Devices', '┃  ❌ *No devices found.*');
         }
-
         const entries = await fs.readdir(pairingDir, { withFileTypes: true });
         const devices = entries
             .filter(e => e.isDirectory() && e.name.endsWith('@s.whatsapp.net'))
             .map(e => e.name);
-
         if (!devices.length) {
             return sendStyled(chatId, 'Paired Devices', '┃  ❌ *No devices linked yet.*');
         }
-
         let rows = `┃  📲 *${devices.length} device(s) linked*\n┃\n`;
         devices.forEach((d, i) => {
             rows += `┃  ${TK.dot} ${i + 1}. \`${d.split('@')[0]}\`\n`;
         });
-
         await sendStyled(chatId, 'Paired Devices', rows.trimEnd());
     } catch (err) {
         console.error(chalk.red('Listpair error:'), err);
@@ -685,16 +613,13 @@ bot.onText(/\/listpair confirm/, async (msg) => {
     }
 });
 
-// ════════════════════════════════════════════
-//  /report
-// ════════════════════════════════════════════
+// /report
 bot.onText(/\/report (.+)/, simpleMiddleware(async (msg, match) => {
     const chatId   = msg.chat.id;
     const userId   = msg.from.id;
     const username = msg.from.username ? `@${msg.from.username}` : 'No username';
     const name     = msg.from.first_name || 'User';
     const text     = match[1].trim();
-
     const body =
 `┃  👤 *${name}*
 ┃  ${TK.dot} ID:      \`${userId}\`
@@ -702,19 +627,17 @@ bot.onText(/\/report (.+)/, simpleMiddleware(async (msg, match) => {
 ┃
 ┃  💬 *MESSAGE*
 ┃  ${text}`;
-
     let sent = 0;
     for (const adminId of adminIDs) {
         try { await sendStyled(adminId, 'New Report 📩', body); sent++; }
         catch (e) { console.error(`Failed to send report to ${adminId}:`, e.message); }
     }
-
     await sendStyled(chatId, 'Report Sent ✅',
         `┃  ✅ *Delivered to ${sent} admin(s)*\n┃  We'll look into it soon! ${TK.sun}`);
 }));
 
 // ════════════════════════════════════════════
-//  CALLBACK QUERY HANDLER (no membership checks)
+//  CALLBACK QUERY HANDLER (no membership)
 // ════════════════════════════════════════════
 bot.on('callback_query', async (cbq) => {
     const msg    = cbq.message;
@@ -723,13 +646,9 @@ bot.on('callback_query', async (cbq) => {
     const chatId = msg.chat.id;
     const msgId  = msg.message_id;
     const fname  = cbq.from.first_name;
-
     await trackUser(userId);
-
-    // ── START BOT (callback) ──
     if (data === 'start_bot') {
         await bot.answerCallbackQuery(cbq.id);
-
         const body =
 `┃  ${TK.sun} *Hey ${fname}!* Welcome back.
 ┃
@@ -737,17 +656,13 @@ bot.on('callback_query', async (cbq) => {
 ┃  📊 /ping  /runtime  /profile
 ┃  🏆 /leaderboard
 ┃  ⚙️ /welcome  /goodbye  /report`;
-
         await sendStyled(chatId, 'Welcome Back 🌻', body, [
             [{ text: `${TK.sun} Channel`, url: SOCIAL_LINKS.channel },
              { text: '👥 Group',          url: SOCIAL_LINKS.group   }],
             [{ text: '❓ Help',            callback_data: 'help_msg'  }],
         ]);
-
-    // ── HELP (callback) ──
     } else if (data === 'help_msg') {
         await bot.answerCallbackQuery(cbq.id);
-
         const body =
 `┃  📲 *PAIRING*
 ┃  ${TK.arrow} /pair  /delpair  /listpair
@@ -757,7 +672,6 @@ bot.on('callback_query', async (cbq) => {
 ┃
 ┃  ⚙️ *GROUP*
 ┃  ${TK.arrow} /welcome  /goodbye  /report`;
-
         await sendStyled(chatId, 'Command Guide', body, [
             [{ text: '🚀 Start',          callback_data: 'start_bot' }],
             [{ text: `${TK.sun} Channel`, url: SOCIAL_LINKS.channel  },
@@ -767,7 +681,7 @@ bot.on('callback_query', async (cbq) => {
 });
 
 // ════════════════════════════════════════════
-//  GROUP EVENT HANDLERS
+//  GROUP EVENT HANDLERS (welcome/goodbye)
 // ════════════════════════════════════════════
 bot.on('new_chat_members', async (msg) => {
     const chatId    = msg.chat.id;
@@ -809,10 +723,9 @@ bot.on('message', async (msg) => {
     const cmd    = msg.text.split(' ')[0];
     const chatId = msg.chat.id;
     const userId = msg.from.id;
-
     if (!VALID_COMMANDS.has(cmd)) {
         await trackUser(userId);
-        sendStyled(chatId, 'Unknown Command',
+        await sendStyled(chatId, 'Unknown Command',
             `┃  ❓ *Command not found.*\n┃  Type /help to see all available commands.`);
     }
 });
