@@ -387,287 +387,173 @@ case 'help': {
 break;
 
 // ========== CHANNEL REACTION COMMAND ==========
-// ========== CHANNEL POST REACTION VIA LINK ==========
-// ========== 100% WORKING CHANNEL POST REACTION ==========
-case 'chreact':
-case 'creact': {
-    if (args.length < 3) {
-        return reply(`📢 *CHANNEL POST REACTION*
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  CHANNEL REACTION — MALVRYX API
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+case 'channelreact':
+case 'creact':
+case 'reactchannel': {
+    if (!isCreator) return reply('❌ *Only the bot owner can use this command.*');
+    
+    // Parse arguments: .creact <channel_url> <reaction> [count]
+    const channelUrl = args[0];
+    const reaction = args[1] || '❤️';
+    const count = parseInt(args[2]) || 1;
+    
+    if (!channelUrl) {
+        return reply(
+`📊 *Usage:* ${prefix}creact <channel_url> <reaction> [count]
 
-*Usage:* ${prefix}chpostreact <post_link> <count> <emoji1> [emoji2] ...
+📌 *Examples:*
+${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X ❤️
+${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X 🔥 5
 
-*Examples:*
-${prefix}chpostreact https://whatsapp.com/channel/120363405724402785/1234567890 5 ❤️
-${prefix}chpostreact https://whatsapp.com/channel/0029Va.../987654321 3 🔥 🎉 😂
-
-*How to get the link:* Open channel → tap post → "Copy link"
-
-*Limits:* 1‑50 reactions, 1‑5 emojis
-
-💝 ＺＵＫＯ－ＸＭＤ`);
+📌 *Reactions:*
+❤️ 🔥 👍 😢 😂 🙏 💯 ✨ 🌟 🎉 💪 💝`
+        );
     }
-
-    const url = args[0];
-    const countRaw = parseInt(args[1]);
-    const emojis = args.slice(2);
-
-    // --- 1. Validate URL ---
-    const channelRegex = /whatsapp\.com\/channel\/([0-9A-Za-z]+)\/([0-9]+)/i;
-    const match = url.match(channelRegex);
-    if (!match) {
-        return reply(`❌ Invalid channel post link.
-
-Expected format: https://whatsapp.com/channel/CHANNEL_ID/POST_ID
-Example: https://whatsapp.com/channel/120363405724402785/1234567890`);
-    }
-
-    const channelId = match[1];
-    const postId = match[2];
-    const remoteJid = `${channelId}@newsletter`;
-
-    // --- 2. Validate count ---
-    if (isNaN(countRaw) || countRaw < 1) {
-        return reply(`❌ Count must be a number >= 1.`);
-    }
-    const count = Math.min(countRaw, 50);
-
-    // --- 3. Validate emojis ---
-    if (emojis.length === 0) {
-        return reply(`❌ Please provide at least one emoji.`);
-    }
-    if (emojis.length > 5) {
-        return reply(`❌ Maximum 5 different emojis.`);
-    }
-    const emojiRegex = /\p{Emoji}/u;
-    for (const e of emojis) {
-        if (!emojiRegex.test(e)) {
-            return reply(`❌ "${e}" is not a valid emoji. Use real emojis like ❤️, 😂, 🔥.`);
-        }
-    }
-
-    await empire.sendMessage(m.chat, { react: { text: '⏳', key: m.key } });
-
-    // --- 4. Construct the message key for the post ---
-    // This is the critical part – exact format WhatsApp expects
-    const targetKey = {
-        remoteJid: remoteJid,
-        id: postId,
-        fromMe: false,
-        participant: null  // important for channels
-    };
-
-    let success = 0;
-    let failed = 0;
-    let rateLimited = false;
-
-    // Optional: try to verify the post exists by fetching it once
-    try {
-        // This is a silent check – the bot tries to retrieve the message
-        // If it fails, we still continue because reactions might still work.
-        await empire.loadMessage(remoteJid, postId).catch(() => {});
-    } catch (e) {}
-
-    const statusMsg = await empire.sendMessage(m.chat, {
-        text: `📢 *Reacting to channel post*\n🆔 ${channelId}\n📝 Post ID: ${postId}\n0/${count} reactions...`
-    }, { quoted: m });
-
-    // --- 5. Send reactions ---
-    for (let i = 0; i < count; i++) {
-        if (rateLimited) {
-            // If we hit a hard rate limit, stop to avoid ban
-            failed += (count - i);
-            break;
-        }
-
-        const emoji = emojis[i % emojis.length];
-        try {
-            await empire.sendMessage(remoteJid, {
-                react: { text: emoji, key: targetKey }
-            });
-            success++;
-
-            // Update status every 5 reactions or at the end
-            if (success % 5 === 0 || success === count) {
-                await empire.sendMessage(m.chat, {
-                    text: `📢 Reacting to channel post\n✅ ${success}/${count} completed`,
-                    edit: statusMsg.key
-                }).catch(() => {});
-            }
-
-            // Delay to avoid rate limiting (250ms is safe)
-            await delay(250);
-        } catch (err) {
-            console.error(`Reaction ${i+1} failed:`, err.message);
-            failed++;
-
-            if (err.message?.toLowerCase().includes('rate-overlimit') ||
-                err.message?.toLowerCase().includes('too many')) {
-                rateLimited = true;
-                await empire.sendMessage(m.chat, {
-                    text: `⚠️ Rate limit reached. Stopping after ${success} reactions.`,
-                    edit: statusMsg.key
-                }).catch(() => {});
-                break;
-            }
-
-            // If the error is not rate‑limit, continue but add extra delay
-            await delay(500);
-        }
-    }
-
-    // --- 6. Final result ---
-    const resultMsg = `
-┌───[ 📢 CHANNEL POST REACTIONS ]
-│
-├  👤 *User:* @${m.sender.split('@')[0]}
-├  📢 *Channel:* ${channelId}
-├  📝 *Post ID:* ${postId}
-├  📊 *Requested:* ${count}
-├  ✅ *Sent:* ${success}
-├  ❌ *Failed:* ${failed}
-├  😊 *Emojis:* ${emojis.join(' ')}
-│
-└───[ 💝 ＺＵＫＯ－ＸＭＤ ]`.trim();
-
-    await empire.sendMessage(m.chat, {
-        text: resultMsg,
-        mentions: [m.sender],
-        edit: statusMsg.key
-    }).catch(() => {
-        empire.sendMessage(m.chat, { text: resultMsg, mentions: [m.sender] }, { quoted: m });
-    });
-
-    await empire.sendMessage(m.chat, { react: { text: '✅', key: m.key } });
-}
-break;
-case 'chpostreact':
-case 'channelpostreact':
-case 'cpreact': {
-    // Parse: .chpostreact <url> <count> <emoji1> [emoji2] ...
-    if (args.length < 3) {
-        return reply(`📢 *CHANNEL POST REACTION (VIA LINK)*
-
-*Usage:* ${prefix}chpostreact <channel_post_url> <count> <emoji1> [emoji2] ...
-
-*Examples:*
-${prefix}chpostreact https://whatsapp.com/channel/120363405724402785/1234567890 5 ❤️
-${prefix}chpostreact https://whatsapp.com/channel/0029Va.../987654321 3 🔥 🎉 😂
-
-*Where to get the link:* 
-Open the channel → tap post → "Copy link"
-
-*Limits:* 1‑50 reactions, 1‑5 emojis
-
-💝 TK CARINO`);
-    }
-
-    const url = args[0];
-    const countRaw = parseInt(args[1]);
-    const emojisRaw = args.slice(2);
-
+    
     // Validate URL
-    const channelRegex = /whatsapp\.com\/channel\/([0-9A-Za-z]+)\/([0-9]+)/i;
-    const match = url.match(channelRegex);
-    if (!match) {
-        return reply(`❌ Invalid WhatsApp channel post link.
-
-*Example:* https://whatsapp.com/channel/120363405724402785/1234567890
-Make sure you copied the full link from the channel post.`);
+    if (!channelUrl.includes('whatsapp.com/channel/')) {
+        return reply('❌ *Invalid channel URL.* Please provide a valid WhatsApp channel link.');
     }
-
-    const channelId = match[1];
-    const postId = match[2];
-    const remoteJid = `${channelId}@newsletter`;
-
-    // Validate count
-    if (isNaN(countRaw) || countRaw < 1) {
-        return reply(`❌ Count must be a number >= 1.`);
+    
+    // Validate reaction (single emoji or short)
+    const emojiRegex = /^[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}\u{FE0F}\u{200D}❤️🔥👍😢😂🙏💯✨🌟🎉💪💝]+$/u;
+    if (!emojiRegex.test(reaction) && !['like','love','haha','wow','sad','angry'].includes(reaction.toLowerCase())) {
+        return reply(`❌ *Invalid reaction.* Use emoji or: like, love, haha, wow, sad, angry`);
     }
-    const count = Math.min(countRaw, 50);
+    
+    if (count < 1 || count > 50) {
+        return reply('❌ *Count must be between 1 and 50.*');
+    }
+    
+    await reply(`⏳ *Adding ${count} ${reaction} reaction(s) to channel...*`);
+    
+    try {
+        const apiUrl = 'https://apis.malvryx.dev/api/tools/channel-react';
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'X-API-Key': 'mlvx_free_15c210e6c0fed4d5d90d556c0bebd068480f03740106d0d3c8189362089ac986',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                url: channelUrl,
+                reactions: reaction,
+                count: count
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Check if API returned an error
+        if (!response.ok || data.status === false || data.error) {
+            return reply(`❌ *API Error:* ${data.message || data.msg || data.error || 'Failed to add reactions'}`);
+        }
+        
+        // Build success response
+        const result = data.result || data.data || data;
+        const successCount = result.added || result.count || count;
+        const channelName = result.channel_name || result.name || 'Channel';
+        
+        await empire.sendMessage(m.chat, {
+            text: `✅━━━━━[ REACTION ADDED ]━━━━━✅
 
-    // Validate emojis
-    if (emojisRaw.length === 0) {
-        return reply(`❌ Please provide at least one emoji.`);
-    }
-    if (emojisRaw.length > 5) {
-        return reply(`❌ Maximum 5 different emojis allowed.`);
-    }
-    const emojiRegex = /\p{Emoji}/u;
-    for (const e of emojisRaw) {
-        if (!emojiRegex.test(e)) {
-            return reply(`❌ "${e}" is not a valid emoji. Use real emojis like ❤️, 😂, 🔥.`);
+📰 *Channel:* ${channelName}
+🔗 *URL:* ${channelUrl}
+😊 *Reaction:* ${reaction}
+📊 *Count:* ${successCount}
+
+📊 *Status:* SUCCESS
+
+📌 *Total reactions added: ${successCount}*
+
+✅━━━━━━━━━━━━━━━━━━━━━━━`,
+            contextInfo: newsletterContext()
+        }, { quoted: m });
+        
+    } catch (e) {
+        console.error('Channel reaction error:', e);
+        
+        // Check for specific error types
+        if (e.message?.includes('fetch')) {
+            return reply('❌ *Network error.* Please check your internet connection.');
+        } else if (e.message?.includes('404')) {
+            return reply(
+`❌ *API Endpoint Not Found (404)*
+
+The Malvryx API endpoint appears to be unavailable.
+
+📌 *Try these alternatives:*
+
+1. *Direct WhatsApp channel reaction:*
+   Open the channel and react manually.
+
+2. *Share the channel link:*
+   ${prefix}share https://whatsapp.com/channel/...
+
+3. *Check API status:*
+   ${prefix}apistatus
+
+4. *Contact Malvryx API support* for updates.
+
+📊 *API Key:* ${'✅ Set'}
+
+💡 *This feature may be in development or temporarily disabled.*`);
+        } else {
+            reply(`❌ *Failed to add reactions:* ${e.message || 'Unknown error'}`);
         }
     }
-
-    await empire.sendMessage(m.chat, { react: { text: '⏳', key: m.key } });
-
-    // Construct message key object for the channel post
-    const targetKey = {
-        remoteJid: remoteJid,
-        id: postId,
-        fromMe: false,
-        participant: null
-    };
-
-    let success = 0;
-    let failed = 0;
-
-    const statusMsg = await empire.sendMessage(m.chat, {
-        text: `📢 *Reacting to channel post*\n🔗 ${remoteJid.split('@')[0]}\n📊 0/${count} reactions...`
-    }, { quoted: m });
-
-    for (let i = 0; i < count; i++) {
-        const emoji = emojisRaw[i % emojisRaw.length];
-        try {
-            await empire.sendMessage(remoteJid, {
-                react: { text: emoji, key: targetKey }
-            });
-            success++;
-
-            if (i % 5 === 0 || i === count - 1) {
-                await empire.sendMessage(m.chat, {
-                    text: `📢 Reacting to channel post\n✅ ${success}/${count} completed`,
-                    edit: statusMsg.key
-                }).catch(() => {});
-            }
-            await delay(300); // safe delay
-        } catch (err) {
-            failed++;
-            console.error(`PostReact error ${i+1}:`, err.message);
-            if (err.message?.includes('rate-overlimit')) {
-                await delay(2000);
-            }
-            if (err.message?.includes('invalid key') || err.message?.includes('not found')) {
-                break; // stop if channel/post no longer exists
-            }
-        }
-    }
-
-    const resultMsg = `
-┌───[ 📢 CHANNEL POST REACTIONS ]
-│
-├  👤 *User:* @${m.sender.split('@')[0]}
-├  📢 *Channel ID:* ${channelId}
-├  📝 *Post ID:* ${postId}
-├  📊 *Requested:* ${count}
-├  ✅ *Sent:* ${success}
-├  ❌ *Failed:* ${failed}
-├  😊 *Emojis:* ${emojisRaw.join(' ')}
-│
-└───[ 💝 Tk CARINO world ]`.trim();
-
-    await empire.sendMessage(m.chat, {
-        text: resultMsg,
-        mentions: [m.sender],
-        edit: statusMsg.key
-    }).catch(() => {
-        empire.sendMessage(m.chat, { text: resultMsg, mentions: [m.sender] }, { quoted: m });
-    });
-
-    await empire.sendMessage(m.chat, { react: { text: '✅', key: m.key } });
+    break;
 }
-break;
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  CHANNEL REACTION — FALLBACK (Manual)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+case 'channel':
+case 'ch': {
+    if (!isCreator) return reply('❌ *Only the bot owner can use this command.*');
+    
+    const opt = args[0]?.toLowerCase();
+    
+    if (opt === 'react') {
+        const url = args[1];
+        const emoji = args[2] || '❤️';
+        if (!url) return reply(`❌ *Usage:* ${prefix}ch react <channel_url> <emoji>`);
+        
+        // Try to open channel link with reaction instruction
+        await reply(
+`📰 *Channel Reaction Helper*
+
+🔗 *Channel:* ${url}
+😊 *Reaction:* ${emoji}
+
+📌 *Instructions:*
+1. Open the channel link
+2. Find the post you want to react to
+3. Tap and hold the message
+4. Select the ${emoji} reaction
+
+🔄 *API Alternative:*
+${prefix}creact ${url} ${emoji} 5
+
+📊 *Malvryx API is currently being updated.*`);
+    } else {
+        reply(
+`📰━━━━━[ CHANNEL TOOLS ]━━━━━📰
+
+📌 *Commands:*
+${prefix}creact <url> <reaction> [count] - Auto-react via API
+${prefix}ch react <url> <emoji> - Manual reaction guide
+${prefix}getnl link <url> - Get newsletter JID
+${prefix}newsletter - Manage newsletter
+
+📰━━━━━━━━━━━━━━━━━━━━━━━`
+        );
+    }
+    break;
+}
 // ========== GROUP MEMBER MANAGEMENT ==========
 case 'setgrouppp':
 case 'setgcicon': {
