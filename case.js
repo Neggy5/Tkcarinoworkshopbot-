@@ -390,26 +390,30 @@ break;
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  CHANNEL REACTION — MALVRYX API
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  CHANNEL REACTION — MALVRYX API
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 case 'channelreact':
 case 'creact':
 case 'reactchannel': {
     if (!isCreator) return reply('❌ *Only the bot owner can use this command.*');
     
-    // Parse arguments: .creact <channel_url> <reaction> [count]
+    // Parse arguments: .channelreact <channel_url> <reaction> [count]
     const channelUrl = args[0];
     const reaction = args[1] || '❤️';
     const count = parseInt(args[2]) || 1;
     
     if (!channelUrl) {
         return reply(
-`📊 *Usage:* ${prefix}creact <channel_url> <reaction> [count]
+`📊 *Usage:* ${prefix}channelreact <channel_url> <reaction> [count]
 
 📌 *Examples:*
-${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X ❤️
-${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X 🔥 5
+${prefix}channelreact https://whatsapp.com/channel/0029VbCb4yP11ulQrybLSJ39 ❤️
+${prefix}channelreact https://whatsapp.com/channel/0029VbCb4yP11ulQrybLSJ39 🔥 5
+${prefix}channelreact https://whatsapp.com/channel/0029VbCb4yP11ulQrybLSJ39 🥹 174
 
 📌 *Reactions:*
-❤️ 🔥 👍 😢 😂 🙏 💯 ✨ 🌟 🎉 💪 💝`
+❤️ 🔥 👍 😢 😂 🙏 💯 ✨ 🌟 🎉 💪 💝 🥹`
         );
     }
     
@@ -418,14 +422,16 @@ ${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X 🔥 5
         return reply('❌ *Invalid channel URL.* Please provide a valid WhatsApp channel link.');
     }
     
-    // Validate reaction (single emoji or short)
-    const emojiRegex = /^[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}\u{FE0F}\u{200D}❤️🔥👍😢😂🙏💯✨🌟🎉💪💝]+$/u;
-    if (!emojiRegex.test(reaction) && !['like','love','haha','wow','sad','angry'].includes(reaction.toLowerCase())) {
+    // Validate reaction
+    const emojiRegex = /^[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{1F004}\u{1F0CF}\u{1F170}-\u{1F251}\u{FE0F}\u{200D}❤️🔥👍😢😂🙏💯✨🌟🎉💪💝🥹🥲😭😊😍🤩😘😏🤔🤗😎🤣]+$/u;
+    const validTextReactions = ['like', 'love', 'haha', 'wow', 'sad', 'angry'];
+    
+    if (!emojiRegex.test(reaction) && !validTextReactions.includes(reaction.toLowerCase())) {
         return reply(`❌ *Invalid reaction.* Use emoji or: like, love, haha, wow, sad, angry`);
     }
     
-    if (count < 1 || count > 50) {
-        return reply('❌ *Count must be between 1 and 50.*');
+    if (count < 1 || count > 999) {
+        return reply('❌ *Count must be between 1 and 999.*');
     }
     
     await reply(`⏳ *Adding ${count} ${reaction} reaction(s) to channel...*`);
@@ -444,6 +450,34 @@ ${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X 🔥 5
                 count: count
             })
         });
+        
+        // Check if response is JSON or HTML
+        const contentType = response.headers.get('content-type') || '';
+        
+        if (!contentType.includes('application/json')) {
+            // API returned HTML (likely 404 or error page)
+            return reply(
+`❌ *API Error: Invalid Response*
+
+The Malvryx API returned HTML instead of JSON.
+
+📌 *Try these alternatives:*
+
+1. *Manual reaction:*
+   Open the channel and react manually
+
+2. *Try a different endpoint:*
+   ${prefix}ch react ${channelUrl} ${reaction}
+
+3. *Check API status:*
+   ${prefix}apitest
+
+📊 *API Key:* ✅ Set
+🔗 *Endpoint:* https://apis.malvryx.dev/api/tools/channel-react
+
+💡 *Contact Malvryx API support for updates.*`
+            );
+        }
         
         const data = await response.json();
         
@@ -465,8 +499,6 @@ ${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X 🔥 5
 😊 *Reaction:* ${reaction}
 📊 *Count:* ${successCount}
 
-📊 *Status:* SUCCESS
-
 📌 *Total reactions added: ${successCount}*
 
 ✅━━━━━━━━━━━━━━━━━━━━━━━`,
@@ -476,38 +508,101 @@ ${prefix}creact https://whatsapp.com/channel/0029Vb5PzE5XpG7q9Zt3wR1X 🔥 5
     } catch (e) {
         console.error('Channel reaction error:', e);
         
-        // Check for specific error types
-        if (e.message?.includes('fetch')) {
-            return reply('❌ *Network error.* Please check your internet connection.');
-        } else if (e.message?.includes('404')) {
+        // Handle JSON parsing errors
+        if (e.message?.includes('Unexpected token')) {
             return reply(
-`❌ *API Endpoint Not Found (404)*
+`❌ *API Response Error*
 
-The Malvryx API endpoint appears to be unavailable.
+The API returned an invalid response (HTML instead of JSON).
 
-📌 *Try these alternatives:*
+📌 *Possible causes:*
+• API endpoint has changed or been removed
+• API key is invalid or expired
+• Service is temporarily down
 
-1. *Direct WhatsApp channel reaction:*
-   Open the channel and react manually.
+📌 *Try this alternative:*
 
-2. *Share the channel link:*
-   ${prefix}share https://whatsapp.com/channel/...
+*Manual reaction:*
+Open the channel: ${channelUrl}
+Find the post and tap the ${reaction} reaction
 
-3. *Check API status:*
-   ${prefix}apistatus
+📊 *API Key:* ✅ Set
+🔗 *Endpoint:* https://apis.malvryx.dev/api/tools/channel-react
 
-4. *Contact Malvryx API support* for updates.
-
-📊 *API Key:* ${'✅ Set'}
-
-💡 *This feature may be in development or temporarily disabled.*`);
-        } else {
-            reply(`❌ *Failed to add reactions:* ${e.message || 'Unknown error'}`);
+💡 *The Malvryx API may have moved or been deprecated. Check for updates.*`
+            );
         }
+        
+        reply(`❌ *Failed to add reactions:* ${e.message || 'Unknown error'}`);
     }
     break;
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  CHANNEL REACTION — MANUAL GUIDE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+case 'ch':
+case 'channel': {
+    if (!isCreator) return reply('❌ *Only the bot owner can use this command.*');
+    
+    const opt = args[0]?.toLowerCase();
+    const url = args[1];
+    const emoji = args[2] || '❤️';
+    const count = args[3] || '1';
+    
+    if (!url) {
+        return reply(
+`📰━━━━━[ CHANNEL TOOLS ]━━━━━📰
+
+📌 *Commands:*
+${prefix}channelreact <url> <reaction> [count] - Auto-react via API
+${prefix}ch react <url> <emoji> - Manual reaction guide
+${prefix}getnl link <url> - Get newsletter JID
+${prefix}newsletter - Manage newsletter
+
+📰━━━━━━━━━━━━━━━━━━━━━━━`
+        );
+    }
+    
+    if (opt === 'react' || opt === 'reactto') {
+        await reply(
+`📰 *Channel Reaction Helper*
+
+🔗 *Channel:* ${url}
+😊 *Reaction:* ${emoji}
+📊 *Count:* ${count}
+
+📌 *How to react manually:*
+
+1. Open the channel link in WhatsApp
+2. Find the post/update you want to react to
+3. Tap and hold the message
+4. Select the ${emoji} reaction from the emoji picker
+5. Or tap the reaction button below the message
+
+📌 *Quick Tips:*
+• Long press on any message to react
+• You can change reactions by tapping again
+• Reactions are anonymous in channels
+
+🔄 *Auto Reaction (API):*
+${prefix}channelreact ${url} ${emoji} ${count}
+
+📊 *API Status:* ⚠️ Currently under maintenance`
+        );
+    } else {
+        reply(
+`📰━━━━━[ CHANNEL HELP ]━━━━━📰
+
+📌 *Commands:*
+${prefix}ch react <url> <emoji> - Get manual guide
+${prefix}channelreact <url> <emoji> [count] - Auto-react via API
+
+📰━━━━━━━━━━━━━━━━━━━━━━━`
+        );
+    }
+    break;
+}
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  CHANNEL REACTION — FALLBACK (Manual)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
